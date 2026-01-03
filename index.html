@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Budget 2026: Utility Survival Calculator</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#151e2e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    
+    <!-- Prop-types -->
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    
+    <!-- Recharts -->
+    <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Custom Styles -->
+    <style>
+        /* Custom Scrollbar - Adapts to theme via CSS variables if needed, strictly dark/light here */
+        .dark ::-webkit-scrollbar { width: 8px; height: 8px; }
+        .dark ::-webkit-scrollbar-track { background: #0f172a; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* Animation utilities */
+        .fade-in { animation: fadeIn 0.5s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .recharts-wrapper { width: 100% !important; }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
+    <div id="root" class="min-h-screen flex flex-col">
+        <!-- Loading State -->
+        <div class="flex items-center justify-center h-screen text-slate-500 font-bold text-xl animate-pulse">
+            Loading Application...
+        </div>
+    </div>
+
+    <script type="text/babel">
+        // --- 1. SETUP & IMPORTS ---
+        const { useState, useMemo, useEffect } = React;
+        const { 
+            ComposedChart, Line, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
+            Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, ReferenceLine
+        } = Recharts;
+
+        // --- 2. ICONS (Lucide Style SVGs) ---
+        const IconBase = ({ children, size = 24, className = "", color = "currentColor", ...props }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+                {children}
+            </svg>
+        );
+
+        const Zap = (props) => <IconBase {...props}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></IconBase>;
+        const Calculator = (props) => <IconBase {...props}><rect width="16" height="20" x="4" y="2" rx="2" /><line x1="8" x2="16" y1="6" y2="6" /><line x1="16" x2="16" y1="14" y2="18" /><path d="M16 10h.01" /><path d="M12 10h.01" /><path d="M8 10h.01" /><path d="M12 14h.01" /><path d="M8 14h.01" /><path d="M12 18h.01" /><path d="M8 18h.01" /></IconBase>;
+        const TrendingUp = (props) => <IconBase {...props}><polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" /></IconBase>;
+        const AlertTriangle = (props) => <IconBase {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" x2="12" y1="9" y2="13" /><line x1="12" x2="12.01" y1="17" y2="17" /></IconBase>;
+        const School = (props) => <IconBase {...props}><path d="m4 6 8-4 8 4" /><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2" /><path d="M14 22v-4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v4" /><path d="M18 5v17" /><path d="M6 5v17" /><circle cx="12" cy="9" r="2" /></IconBase>;
+        const Droplets = (props) => <IconBase {...props}><path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z" /><path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97" /></IconBase>;
+        const Activity = (props) => <IconBase {...props}><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></IconBase>;
+        const LayoutDashboard = (props) => <IconBase {...props}><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></IconBase>;
+        const Settings = (props) => <IconBase {...props}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.39a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></IconBase>;
+        const Menu = (props) => <IconBase {...props}><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="18" y2="18" /></IconBase>;
+        const X = (props) => <IconBase {...props}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></IconBase>;
+        const FileSpreadsheet = (props) => <IconBase {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><path d="M8 13h2" /><path d="M8 17h2" /><path d="M14 13h2" /><path d="M14 17h2" /></IconBase>;
+        const CheckCircle2 = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" /></IconBase>;
+        const Lock = (props) => <IconBase {...props}><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></IconBase>;
+        const Leaf = (props) => <IconBase {...props}><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" /><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" /></IconBase>;
+        const Target = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></IconBase>;
+        const Moon = (props) => <IconBase {...props}><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></IconBase>;
+        const Sun = (props) => <IconBase {...props}><circle cx="12" cy="12" r="4" /><path d="M12 2v2" /><path d="M12 20v2" /><path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" /><path d="M2 12h2" /><path d="M20 12h2" /><path d="m6.34 17.66-1.41-1.41" /><path d="m19.07 4.93-1.41 1.41" /></IconBase>;
+        const Coins = (props) => <IconBase {...props}><circle cx="8" cy="8" r="6" /><path d="M18.09 10.37A6 6 0 1 1 10.34 18" /><path d="M7 6h1v4" /><path d="m16.71 13.88.7.71-2.82 2.82" /></IconBase>;
+        const ShieldAlert = (props) => <IconBase {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" /><line x1="12" x2="12" y1="8" y2="12" /><line x1="12" x2="12.01" y1="16" y2="16" /></IconBase>;
+        const Ban = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10" /><path d="m4.9 4.9 14.2 14.2" /></IconBase>;
+        const Users = (props) => <IconBase {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></IconBase>;
+
+        // --- 3. UI COMPONENTS (Dynamic Theming) ---
+
+        const SidebarItem = ({ icon: Icon, label, active, onClick }) => (
+            <button
+                onClick={onClick}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors rounded-lg mb-1 ${
+                active 
+                    ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800' 
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+            >
+                <Icon size={18} className={active ? "text-blue-600 dark:text-blue-400" : "text-slate-500"} />
+                {label}
+            </button>
+        );
+
+        const PlaceholderView = ({ title, icon: Icon, isDark }) => (
+            <div className="flex flex-col items-center justify-center h-full min-h-[500px] text-slate-500 p-8 text-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm fade-in">
+                <div className="bg-slate-100 dark:bg-slate-800 p-6 rounded-full mb-6">
+                    <Icon size={48} className="text-slate-400 dark:text-slate-600" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200 mb-2">{title}</h3>
+                <p className="max-w-md text-slate-500">
+                    This module is available in the full suite. Please return to the <b>Funding Deficit</b> or <b>Analysis</b> tabs.
+                </p>
+            </div>
+        );
+
+        // Chart Theme Helpers
+        const getChartColors = (isDark) => ({
+            grid: isDark ? "#334155" : "#e2e8f0",
+            text: isDark ? "#94a3b8" : "#64748b",
+            tooltipBg: isDark ? "#1e293b" : "#ffffff",
+            tooltipBorder: isDark ? "#475569" : "#cbd5e1",
+            tooltipText: isDark ? "#f8fafc" : "#1e293b"
+        });
+
+        // --- 4. VIEW COMPONENTS ---
+
+        // 4.1 Cost Projection Calculator
+        const CalculatorView = ({ totalCurrentCost, isDark }) => {
+            const [inflationRate, setInflationRate] = useState(7.5);
+            const [startYear, setStartYear] = useState(new Date().getFullYear());
+
+            const theme = getChartColors(isDark);
+            const formatCurrency = (value) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(value);
+            const formatCompact = (value) => new Intl.NumberFormat('en-ZA', { notation: 'compact', compactDisplay: 'short', style: 'currency', currency: 'ZAR' }).format(value);
+
+            const projectionData = useMemo(() => {
+                let data = [];
+                let currentCost = totalCurrentCost;
+                let accumulatedCost = 0;
+                for (let i = 0; i < 10; i++) {
+                    const year = startYear + i;
+                    const increaseAmount = currentCost * (inflationRate / 100);
+                    const costAfterIncrease = currentCost + increaseAmount;
+                    accumulatedCost += costAfterIncrease;
+                    data.push({
+                        year: year,
+                        startCost: Math.round(currentCost),
+                        increase: Math.round(increaseAmount),
+                        endCost: Math.round(costAfterIncrease),
+                        accumulation: Math.round(accumulatedCost),
+                    });
+                    currentCost = costAfterIncrease;
+                }
+                return data;
+            }, [totalCurrentCost, inflationRate, startYear]);
+
+            const totalTenYearCost = projectionData[projectionData.length - 1].accumulation;
+
+            return (
+                <div className="max-w-7xl mx-auto space-y-6 fade-in">
+                    <header className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border-b-4 border-yellow-500 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-slate-200 dark:border-slate-800">
+                        <div>
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-3 bg-yellow-100 dark:bg-yellow-500/10 rounded-lg text-yellow-600 dark:text-yellow-500">
+                                    <Zap size={24} />
+                                </div>
+                                <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Status Quo Cost Projection</h1>
+                            </div>
+                            <p className="text-slate-500 dark:text-slate-400 max-w-2xl">
+                                Calculate the projected 10-year cost of Electricity & Water based on current tariffs.
+                            </p>
+                        </div>
+                        <div className="flex gap-3 w-full md:w-auto">
+                            <div className="bg-red-50 dark:bg-red-950/30 px-5 py-3 rounded-lg border border-red-200 dark:border-red-900/50 text-right shadow-sm w-full md:w-auto">
+                                <div className="text-xs font-bold text-red-500 dark:text-red-400 uppercase tracking-wide">10-Year Liability</div>
+                                <div className="text-2xl font-bold text-red-600 dark:text-red-500 mt-1">{formatCompact(totalTenYearCost)}</div>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <div className="lg:col-span-4 space-y-6">
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+                                <h2 className="text-lg font-semibold flex items-center gap-2 text-slate-800 dark:text-slate-200 mb-6">
+                                    <Calculator size={20} className="text-blue-500"/> Input Parameters
+                                </h2>
+                                <div className="space-y-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Current Annual Cost (Calculated)</label>
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><span className="text-slate-400 dark:text-slate-600 font-bold">R</span></div>
+                                            <input 
+                                                type="number" 
+                                                value={totalCurrentCost} 
+                                                disabled
+                                                className="block w-full pl-8 pr-10 py-3 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-500 rounded-lg text-lg font-medium cursor-not-allowed" 
+                                            />
+                                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 dark:text-slate-600">
+                                                <Lock size={16} />
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-slate-500 dark:text-slate-600 mt-1">Sum of Electricity & Water inputs.</p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Annual Increase (%)</label>
+                                        <div className="relative">
+                                            <input type="number" step="0.1" value={inflationRate} onChange={(e) => setInflationRate(Number(e.target.value))} className="block w-full pl-3 pr-8 py-3 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all text-lg font-medium" />
+                                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none"><span className="text-slate-400 dark:text-slate-500 font-bold">%</span></div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Starting Year</label>
+                                        <input type="number" value={startYear} onChange={(e) => setStartYear(Number(e.target.value))} className="block w-full px-3 py-3 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all" />
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                    <div className="text-slate-500 text-xs font-bold uppercase mb-1">Year 1 Cost</div>
+                                    <div className="text-lg font-bold text-slate-800 dark:text-slate-200">{formatCompact(projectionData[0].endCost)}</div>
+                                </div>
+                                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                    <div className="text-slate-500 text-xs font-bold uppercase mb-1">Year 10 Cost</div>
+                                    <div className="text-lg font-bold text-slate-800 dark:text-slate-200">{formatCompact(projectionData[9].endCost)}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="lg:col-span-8 space-y-6">
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 h-[500px] flex flex-col">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-lg font-semibold flex items-center gap-2 text-slate-800 dark:text-slate-200"><TrendingUp size={20} className="text-green-500"/> Cost Trajectory</h2>
+                                </div>
+                                <div className="flex-grow w-full min-h-0">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <ComposedChart data={projectionData} margin={{ top: 10, right: 30, left: 20, bottom: 20 }}>
+                                            <defs>
+                                                <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#EAB308" stopOpacity={0.2}/>
+                                                    <stop offset="95%" stopColor="#EAB308" stopOpacity={0}/>
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme.grid} />
+                                            <XAxis dataKey="year" tick={{fill: theme.text, fontSize: 12}} tickLine={false} axisLine={{stroke: theme.grid}} />
+                                            <YAxis yAxisId="left" tickFormatter={(value) => `R${(value/1000000).toFixed(1)}m`} tick={{fill: '#eab308', fontSize: 12}} tickLine={false} axisLine={false} />
+                                            <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `R${(value/1000000).toFixed(1)}m`} tick={{fill: '#ef4444', fontSize: 12}} tickLine={false} axisLine={false} />
+                                            <Tooltip formatter={(value) => formatCurrency(value)} contentStyle={{ backgroundColor: theme.tooltipBg, borderRadius: '8px', border: `1px solid ${theme.tooltipBorder}`, color: theme.tooltipText }} />
+                                            <Area yAxisId="left" type="monotone" dataKey="endCost" name="Annual Cost" stroke="#EAB308" strokeWidth={3} fillOpacity={1} fill="url(#colorCost)" />
+                                            <Line yAxisId="right" type="monotone" dataKey="accumulation" name="Cumulative Cost" stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" />
+                                        </ComposedChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                            <h2 className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                <FileSpreadsheet size={20} className="text-slate-500"/>
+                                Projection Data
+                            </h2>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
+                                <thead>
+                                    <tr className="bg-yellow-50 dark:bg-yellow-600/20 text-yellow-700 dark:text-yellow-500">
+                                        <th scope="col" className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Year</th>
+                                        <th scope="col" className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider">Start Balance</th>
+                                        <th scope="col" className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider">Annual Increase</th>
+                                        <th scope="col" className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider">End Balance</th>
+                                        <th scope="col" className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider">Accumulation</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-800">
+                                    {projectionData.map((row, index) => (
+                                        <tr key={row.year} className={index % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors'}>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700 dark:text-slate-300">{row.year}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 text-right">{formatCurrency(row.startCost)}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-yellow-600 dark:text-yellow-500 font-medium text-right">{formatCurrency(row.increase)}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300 font-bold text-right">{formatCurrency(row.endCost)}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 text-right font-mono">
+                                                {index === 9 ? (
+                                                    <span className="font-bold text-red-500">{formatCurrency(row.accumulation)}</span>
+                                                ) : (
+                                                    formatCurrency(row.accumulation)
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // 4.2 SASA Allocation Component
+        const SasaAllocationView = ({ learners, setLearners, perCapita, setPerCapita, isDark }) => {
+            const theme = getChartColors(isDark);
+            const formatCurrency = (value) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(value);
+
+            const totalAllocation = learners * perCapita;
+            const ltsmTotal = totalAllocation * 0.50; 
+            const servicesTotal = totalAllocation * 0.38; 
+            const maintenanceTotal = totalAllocation * 0.12; 
+            
+            const municipalServices = servicesTotal * 0.60;
+            
+            const quintileOptions = [
+                { label: 'Q1-3 (No Fee)', value: 1835, color: 'hover:bg-green-100 dark:hover:bg-green-900/30 hover:border-green-700', badge: 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400' },
+                { label: 'Q4 (Fee)', value: 919, color: 'hover:bg-orange-100 dark:hover:bg-orange-900/30 hover:border-orange-700', badge: 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400' },
+                { label: 'Q5 (Fee)', value: 315, color: 'hover:bg-red-100 dark:hover:bg-red-900/30 hover:border-red-700', badge: 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400' },
+            ];
+
+            const chartData = [
+                { name: 'LTSM (Textbooks)', value: ltsmTotal, color: '#3b82f6' },
+                { name: 'Services (Municipal)', value: servicesTotal, color: '#eab308' },
+                { name: 'Maintenance', value: maintenanceTotal, color: '#22c55e' },
+            ];
+
+            return (
+                <div className="max-w-7xl mx-auto space-y-6 fade-in">
+                    <header className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border-b-4 border-blue-500 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-slate-200 dark:border-slate-800">
+                        <div>
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-3 bg-blue-100 dark:bg-blue-500/10 rounded-lg text-blue-600 dark:text-blue-500">
+                                    <School size={24} />
+                                </div>
+                                <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">SASA Section 21 Allocation</h1>
+                            </div>
+                            <p className="text-slate-500 dark:text-slate-400 max-w-2xl">
+                                Calculate your school's official resource allocation based on learner numbers and 2026 adequacy norms.
+                            </p>
+                        </div>
+                        <div className="bg-blue-50 dark:bg-blue-900/20 px-5 py-3 rounded-lg border border-blue-200 dark:border-blue-800 text-right shadow-sm w-full md:w-auto">
+                            <div className="text-xs font-bold text-blue-500 dark:text-blue-400 uppercase tracking-wide">Total Allocation</div>
+                            <div className="text-2xl font-bold text-blue-600 dark:text-blue-500 mt-1">{formatCurrency(totalAllocation)}</div>
+                        </div>
+                    </header>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <div className="lg:col-span-4 space-y-6">
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+                                <h2 className="text-lg font-semibold flex items-center gap-2 text-slate-800 dark:text-slate-200 mb-6">
+                                    <Calculator size={20} className="text-blue-500"/> School Parameters
+                                </h2>
+                                <div className="space-y-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Number of Learners</label>
+                                        <input type="number" value={learners} onChange={(e) => setLearners(Number(e.target.value))} className="block w-full px-3 py-3 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-lg font-medium" />
+                                        <p className="text-xs text-slate-500 mt-1">From SASA PDF: 712</p>
+                                    </div>
+                                    
+                                    <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <Coins size={16} className="text-slate-500"/>
+                                            <span className="text-xs font-bold text-slate-500 uppercase">National Allocations 2026</span>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {quintileOptions.map((opt) => (
+                                                <button 
+                                                    key={opt.value}
+                                                    onClick={() => setPerCapita(opt.value)}
+                                                    className={`w-full flex justify-between items-center p-2 rounded-lg border border-transparent transition-all ${opt.color} ${perCapita === opt.value ? 'bg-white dark:bg-slate-800 border-blue-500 shadow-sm ring-1 ring-blue-500' : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800'}`}
+                                                >
+                                                    <span className="text-sm text-slate-600 dark:text-slate-300 font-medium">{opt.label}</span>
+                                                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${opt.badge}`}>R{opt.value}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Adequacy Amount (Per Capita)</label>
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><span className="text-slate-400 dark:text-slate-500 font-bold">R</span></div>
+                                            <input type="number" value={perCapita} onChange={(e) => setPerCapita(Number(e.target.value))} className="block w-full pl-8 pr-3 py-3 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-lg font-medium" />
+                                        </div>
+                                        <p className="text-xs text-slate-500 mt-1">Manual override allowed.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-yellow-50 dark:bg-yellow-900/20 p-6 rounded-xl border border-yellow-200 dark:border-yellow-800/50 shadow-sm">
+                                <div className="flex items-center gap-2 text-yellow-600 dark:text-yellow-500 font-bold mb-2">
+                                    <Zap size={18} />
+                                    Municipal Services Budget
+                                </div>
+                                <div className="text-3xl font-bold text-yellow-500 dark:text-yellow-400 mb-1">
+                                    {formatCurrency(municipalServices)}
+                                </div>
+                                <p className="text-sm text-yellow-700 dark:text-yellow-500/70">
+                                    This is the <b>only</b> portion of your allocation specifically ringfenced for Electricity & Water (22.8% of total).
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="lg:col-span-8 space-y-6">
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 h-[400px] flex flex-col">
+                                <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-4">Allocation Breakdown</h2>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie data={chartData} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={5} dataKey="value" stroke="none">
+                                            {chartData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} />))}
+                                        </Pie>
+                                        <Tooltip formatter={(value) => formatCurrency(value)} contentStyle={{ backgroundColor: theme.tooltipBg, border: `1px solid ${theme.tooltipBorder}`, color: theme.tooltipText, borderRadius: '8px' }} />
+                                        <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle"/>
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // 4.3 Monthly Cost Component
+        const MonthlyCostView = ({ type, data, setData, isDark }) => {
+            const isElectricity = type === 'electricity';
+            const theme = getChartColors(isDark);
+            
+            const color = isElectricity ? '#EAB308' : '#0ea5e9'; 
+            const bgClass = isElectricity ? 'bg-yellow-100 dark:bg-yellow-500/10' : 'bg-sky-100 dark:bg-sky-500/10';
+            const textClass = isElectricity ? 'text-yellow-600 dark:text-yellow-500' : 'text-sky-600 dark:text-sky-500';
+            const borderClass = isElectricity ? 'border-yellow-500' : 'border-sky-500';
+            const title = isElectricity ? 'Municipal Electricity Cost 2025' : 'Municipal Water Cost 2025';
+            const icon = isElectricity ? Zap : Droplets;
+
+            const totalCost = data.reduce((acc, curr) => acc + curr.cost, 0);
+            const formatCurrency = (value) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(value);
+
+            const handleCostChange = (index, value) => {
+                const newData = [...data];
+                newData[index].cost = Number(value);
+                setData(newData);
+            };
+
+            return (
+                <div className="max-w-7xl mx-auto space-y-6 fade-in">
+                    <header className={`bg-white dark:bg-slate-900 rounded-xl shadow-sm border-b-4 ${borderClass} p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-slate-200 dark:border-slate-800`}>
+                        <div>
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className={`p-3 ${bgClass} rounded-lg ${textClass}`}>
+                                    {React.createElement(icon, { size: 24 })}
+                                </div>
+                                <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{title}</h1>
+                            </div>
+                            <p className="text-slate-500 dark:text-slate-400 max-w-2xl">
+                                Track and visualize your actual monthly municipal invoice amounts for the financial year.
+                            </p>
+                        </div>
+                        <div className={`bg-white dark:bg-slate-900 px-5 py-3 rounded-lg border ${isElectricity ? 'border-yellow-200 dark:border-yellow-900' : 'border-sky-200 dark:border-sky-900'} text-right shadow-sm w-full md:w-auto`}>
+                            <div className={`text-xs font-bold ${textClass} uppercase tracking-wide`}>Total Annual Liability</div>
+                            <div className={`text-2xl font-bold ${isElectricity ? 'text-yellow-600 dark:text-yellow-500' : 'text-sky-600 dark:text-sky-500'} mt-1`}>{formatCurrency(totalCost)}</div>
+                        </div>
+                    </header>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <div className="lg:col-span-4 space-y-6">
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+                                <h2 className="text-lg font-semibold flex items-center gap-2 text-slate-800 dark:text-slate-200 mb-6">
+                                    <Calculator size={20} className="text-slate-500"/> Monthly Inputs
+                                </h2>
+                                <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+                                    {data.map((item, index) => (
+                                        <div key={item.month} className="flex items-center gap-4">
+                                            <div className="w-12 font-bold text-slate-500 text-sm">{item.month}</div>
+                                            <div className="relative flex-1">
+                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><span className="text-slate-400 dark:text-slate-600 font-bold text-xs">R</span></div>
+                                                <input 
+                                                    type="number" 
+                                                    value={item.cost} 
+                                                    onChange={(e) => handleCostChange(index, e.target.value)} 
+                                                    className="block w-full pl-7 pr-3 py-2 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-200 rounded-md focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-600 focus:border-slate-500 transition-all text-sm font-medium" 
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className={`mt-4 p-4 rounded-lg border text-center font-bold ${isElectricity ? 'bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-900 text-yellow-600 dark:text-yellow-500' : 'bg-sky-50 dark:bg-sky-900/10 border-sky-200 dark:border-sky-900 text-sky-600 dark:text-sky-500'}`}>
+                                    Total: {formatCurrency(totalCost)}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="lg:col-span-8 space-y-6">
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 h-[500px] flex flex-col">
+                                <h2 className="text-lg font-semibold flex items-center gap-2 text-slate-800 dark:text-slate-200 mb-6">
+                                    <TrendingUp size={20} className={textClass}/> Cost Distribution
+                                </h2>
+                                <div className="flex-grow w-full min-h-0">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={data} margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme.grid} />
+                                            <XAxis dataKey="month" tick={{fill: theme.text, fontSize: 12}} tickLine={false} axisLine={{stroke: theme.grid}} />
+                                            <YAxis tickFormatter={(value) => `R${(value/1000).toFixed(0)}k`} tick={{fill: theme.text, fontSize: 12}} tickLine={false} axisLine={false} />
+                                            <Tooltip 
+                                                cursor={{fill: theme.grid, opacity: 0.2}}
+                                                formatter={(value) => [formatCurrency(value), 'Cost']}
+                                                contentStyle={{ backgroundColor: theme.tooltipBg, borderRadius: '8px', border: `1px solid ${theme.tooltipBorder}`, color: theme.tooltipText }}
+                                            />
+                                            <Bar dataKey="cost" fill={color} radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // 4.4 Consumption Analysis View
+        const ConsumptionView = ({ elecCons, setElecCons, waterDailyData, isDark }) => {
+            const [activeTab, setActiveTab] = useState('waterDaily'); 
+            const theme = getChartColors(isDark);
+
+            // Calculations for Water (Aug 2025 sample)
+            const outsideUse = 648;
+            const insideUse = 504;
+            const totalWater = outsideUse + insideUse;
+            const potentialSaving = outsideUse * 67.25;
+
+            const pieData = [
+                { name: 'School Hours (6am-6pm)', value: insideUse, color: '#0ea5e9' }, 
+                { name: 'Outside Hours (6pm-6am)', value: outsideUse, color: '#ef4444' }, 
+            ];
+
+            const formatNumber = (num) => new Intl.NumberFormat('en-ZA').format(num);
+            const formatCurrency = (value) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(value);
+
+
+            return (
+                <div className="max-w-7xl mx-auto space-y-6 fade-in">
+                    <header className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border-b-4 border-slate-500 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-slate-200 dark:border-slate-800">
+                        <div>
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-300">
+                                    <Activity size={24} />
+                                </div>
+                                <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Consumption Analysis</h1>
+                            </div>
+                            <p className="text-slate-500 dark:text-slate-400 max-w-2xl">
+                                Track physical unit consumption patterns. Use the <b>6-to-6 Analysis</b> to identify after-hours waste.
+                            </p>
+                        </div>
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => setActiveTab('waterDaily')}
+                                className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-colors ${activeTab === 'waterDaily' ? 'bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-400 ring-2 ring-sky-300 dark:ring-sky-600' : 'bg-white dark:bg-slate-900 text-slate-500 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                            >
+                                <Droplets size={16}/> Water (6-to-6)
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab('elecMonthly')}
+                                className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-colors ${activeTab === 'elecMonthly' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-600 dark:text-yellow-500 ring-2 ring-yellow-300 dark:ring-yellow-600' : 'bg-white dark:bg-slate-900 text-slate-500 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                            >
+                                <Zap size={16}/> Elec (Monthly)
+                            </button>
+                        </div>
+                    </header>
+
+                    {activeTab === 'waterDaily' && (
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                            {/* Left: Stats & Pie */}
+                            <div className="lg:col-span-5 space-y-6">
+                                <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+                                    <h2 className="text-lg font-semibold flex items-center gap-2 text-slate-800 dark:text-slate-200 mb-6">
+                                        <Target size={20} className="text-sky-500"/> August 2025 Breakdown
+                                    </h2>
+                                    
+                                    <div className="h-64">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={2} dataKey="value" stroke="none">
+                                                    {pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} />))}
+                                                </Pie>
+                                                <Tooltip formatter={(value) => `${value} kL`} contentStyle={{ backgroundColor: theme.tooltipBg, border: `1px solid ${theme.tooltipBorder}`, borderRadius: '8px', color: theme.tooltipText }}/>
+                                                <Legend verticalAlign="bottom" height={36}/>
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </div>
+
+                                    <div className="mt-6 space-y-3">
+                                        <div className="flex justify-between items-center p-3 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-900/50">
+                                            <div>
+                                                <div className="text-xs font-bold text-red-500 uppercase flex items-center gap-1"><Moon size={12}/> Outside Hours (Potential Waste)</div>
+                                                <div className="text-sm text-red-400">Night Usage (6pm - 6am)</div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-lg font-bold text-red-500">{outsideUse} kL</div>
+                                                <div className="text-xs font-bold text-red-400">56.25%</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-center p-3 bg-sky-50 dark:bg-sky-950/20 rounded-lg border border-sky-200 dark:border-sky-900/50">
+                                            <div>
+                                                <div className="text-xs font-bold text-sky-500 uppercase flex items-center gap-1"><Sun size={12}/> School Hours (Legitimate)</div>
+                                                <div className="text-sm text-sky-400">Day Usage (6am - 6pm)</div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-lg font-bold text-sky-500">{insideUse} kL</div>
+                                                <div className="text-xs font-bold text-sky-400">43.75%</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-gradient-to-br from-green-500 to-green-700 dark:from-green-900 dark:to-slate-900 p-6 rounded-xl shadow-lg border border-green-600 dark:border-green-800/30 text-white">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="p-2 bg-white/20 dark:bg-green-500/20 rounded-lg">
+                                            <CheckCircle2 size={20} className="text-white dark:text-green-400"/>
+                                        </div>
+                                        <div className="font-bold text-lg">Potential Monthly Saving</div>
+                                    </div>
+                                    <div className="text-3xl font-bold text-white dark:text-green-400 mb-1">{formatCurrency(potentialSaving)}</div>
+                                    <div className="text-sm text-green-100 dark:text-green-100/70">
+                                        If "Outside Hours" usage is eliminated (e.g. fixing leaks, stopping night irrigation). <br/>
+                                        <span className="text-xs opacity-70">Based on tariff R67.25/kL</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Right: Daily Chart */}
+                            <div className="lg:col-span-7 space-y-6">
+                                <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 h-full min-h-[500px] flex flex-col">
+                                    <h2 className="text-lg font-semibold flex items-center gap-2 text-slate-800 dark:text-slate-200 mb-6">
+                                        <Activity size={20} className="text-sky-500"/> Daily Usage Profile (August)
+                                    </h2>
+                                    
+                                    <div className="flex-grow w-full min-h-0">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={waterDailyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme.grid} />
+                                                <XAxis dataKey="day" tick={{fill: theme.text, fontSize: 10}} tickLine={false} axisLine={{stroke: theme.grid}} interval={2} />
+                                                <YAxis tick={{fill: theme.text, fontSize: 12}} tickLine={false} axisLine={false} />
+                                                <Tooltip 
+                                                    contentStyle={{ backgroundColor: theme.tooltipBg, borderRadius: '8px', border: `1px solid ${theme.tooltipBorder}`, color: theme.tooltipText }}
+                                                    cursor={{fill: theme.grid, opacity: 0.2}}
+                                                />
+                                                <Legend />
+                                                <Bar dataKey="school" name="School Hours" stackId="a" fill="#0ea5e9" />
+                                                <Bar dataKey="outside" name="Outside Hours" stackId="a" fill="#ef4444" />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                    <div className="text-xs text-center text-slate-500 mt-4">
+                                        Showing daily split between School Hours (Blue) and Outside Hours (Red). High red bars indicate leaks or overnight usage.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'elecMonthly' && (
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 h-[500px] flex flex-col">
+                            <h2 className="text-lg font-semibold flex items-center gap-2 text-slate-800 dark:text-slate-200 mb-6">
+                                <Zap size={20} className="text-yellow-500"/> Monthly Electricity Consumption (kWh)
+                            </h2>
+                            <div className="flex-grow w-full min-h-0">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={elecCons} margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme.grid} />
+                                        <XAxis dataKey="month" tick={{fill: theme.text, fontSize: 12}} tickLine={false} axisLine={{stroke: theme.grid}} />
+                                        <YAxis tickFormatter={(value) => formatNumber(value)} tick={{fill: theme.text, fontSize: 12}} tickLine={false} axisLine={false} />
+                                        <Tooltip 
+                                            cursor={{fill: theme.grid, opacity: 0.2}}
+                                            formatter={(value) => [formatNumber(value) + ` kWh`, 'Usage']}
+                                            contentStyle={{ backgroundColor: theme.tooltipBg, borderRadius: '8px', border: `1px solid ${theme.tooltipBorder}`, color: theme.tooltipText }}
+                                        />
+                                        <Bar dataKey="value" fill="#EAB308" radius={[4, 4, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                            {/* Simple Input Table for Elec */}
+                            <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-6">
+                                <h3 className="text-sm font-bold text-slate-400 mb-4">Update Monthly Values</h3>
+                                <div className="grid grid-cols-6 gap-2">
+                                    {elecCons.map((item, index) => (
+                                        <div key={index} className="flex flex-col">
+                                            <label className="text-xs text-slate-500 mb-1">{item.month}</label>
+                                            <input 
+                                                type="number" 
+                                                value={item.value} 
+                                                onChange={(e) => {
+                                                    const newData = [...elecCons];
+                                                    newData[index].value = Number(e.target.value);
+                                                    setElecCons(newData);
+                                                }}
+                                                className="border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 rounded p-1 text-sm"
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // 4.5 Funding Deficit View (The Core Logic)
+        const FundingDeficitView = ({ elecData, waterData, sasaAllocation, perCapita, setPerCapita, isDark }) => {
+            const [suntricityActive, setSuntricityActive] = useState(false);
+            const [utilityAllocPct, setUtilityAllocPct] = useState(20); 
+            const [utilityInflation, setUtilityInflation] = useState(12.5);
+            const [grantIncrease, setGrantIncrease] = useState(4.6);
+            const [startYear] = useState(2026);
+            
+            const theme = getChartColors(isDark);
+
+            // Estimates
+            const totalElec = elecData.reduce((acc, curr) => acc + curr.cost, 0);
+            const totalWater = waterData.reduce((acc, curr) => acc + curr.cost, 0);
+            const totalCurrentCost = totalElec + totalWater;
+            const totalGrantEstimate = sasaAllocation / 0.228; 
+            const currentGrantForUtilsBase = totalGrantEstimate * (utilityAllocPct / 100);
+
+            // Savings Calculations (Suntricity Model)
+            const ELEC_SAVINGS_PCT = 0.70;
+            const WATER_SAVINGS_PCT = 0.60;
+            
+            const savedElec = suntricityActive ? totalElec * ELEC_SAVINGS_PCT : 0;
+            const savedWater = suntricityActive ? totalWater * WATER_SAVINGS_PCT : 0;
+            const totalSavings = savedElec + savedWater;
+            const postInterventionCost = totalCurrentCost - totalSavings;
+
+            const formatCurrency = (value) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(value);
+            const formatCompact = (value) => new Intl.NumberFormat('en-ZA', { notation: 'compact', compactDisplay: 'short', style: 'currency', currency: 'ZAR' }).format(value);
+
+            // Chart Data for "Gap Analysis"
+            const gapData = [
+                {
+                    name: 'Status Quo',
+                    Grant: Math.round(currentGrantForUtilsBase),
+                    Electricity: Math.round(totalElec),
+                    Water: Math.round(totalWater),
+                    TotalLiability: Math.round(totalElec + totalWater)
+                },
+                {
+                    name: 'With Intervention',
+                    Grant: Math.round(currentGrantForUtilsBase),
+                    Electricity: Math.round(totalElec - savedElec),
+                    Water: Math.round(totalWater - savedWater),
+                    TotalLiability: Math.round(postInterventionCost)
+                }
+            ];
+
+            // 10-Year Projection Logic
+            const projectionData = useMemo(() => {
+                let data = [];
+                let currentGrantForUtils = currentGrantForUtilsBase;
+                let currentCost = postInterventionCost; // Start with the intervened cost
+                let accumulatedDeficit = 0;
+
+                for (let i = 0; i < 10; i++) {
+                    const year = startYear + i;
+                    if (i > 0) {
+                        currentGrantForUtils = currentGrantForUtils * (1 + grantIncrease/100);
+                        currentCost = currentCost * (1 + utilityInflation/100);
+                    }
+                    const shortfall = currentCost - currentGrantForUtils;
+                    accumulatedDeficit += shortfall;
+                    
+                    data.push({
+                        year,
+                        grant: Math.round(currentGrantForUtils),
+                        cost: Math.round(currentCost),
+                        shortfall: Math.round(shortfall),
+                        accumulatedDeficit: Math.round(accumulatedDeficit)
+                    });
+                }
+                return data;
+            }, [currentGrantForUtilsBase, postInterventionCost, grantIncrease, utilityInflation, startYear]);
+
+            const year1 = projectionData[0];
+            const isDeficit = year1.shortfall > 0;
+
+            const quintileOptions = [
+                { label: 'Q1-3', value: 1835 },
+                { label: 'Q4', value: 919 },
+                { label: 'Q5', value: 315 },
+            ];
+
+            return (
+                <div className="max-w-7xl mx-auto space-y-6 fade-in">
+                    {/* 1. HEADER & POLICY ALERT */}
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border-l-8 border-red-600 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-slate-200 dark:border-slate-800">
+                        <div>
+                            <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                <ShieldAlert className="text-red-500" />
+                                SASA Utility "Survival" Calculator
+                            </h1>
+                            <p className="text-slate-500 dark:text-slate-400 mt-1">
+                                <strong>Policy Alert (2025):</strong> No-Fee schools are now liable for municipal debt. No more automatic bailouts.
+                            </p>
+                        </div>
+                        <div className="bg-red-50 dark:bg-red-950/40 px-4 py-2 rounded-lg border border-red-200 dark:border-red-900 flex items-center gap-2">
+                            <Ban size={18} className="text-red-500" />
+                            <span className="text-xs font-bold text-red-500 uppercase">Risk: Disconnection</span>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        {/* 2. LEFT COLUMN: CONTROLS & INTERVENTIONS */}
+                        <div className="lg:col-span-4 space-y-6">
+                            {/* School Context */}
+                            <div className="bg-white dark:bg-slate-900 p-5 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+                                <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
+                                    <Users size={16} /> School Setup
+                                </h2>
+                                
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 mb-2">Quintile</label>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {quintileOptions.map((opt) => (
+                                                <button
+                                                    key={opt.value}
+                                                    onClick={() => setPerCapita(opt.value)}
+                                                    className={`py-2 text-xs font-bold rounded-md transition-all ${
+                                                        perCapita === opt.value 
+                                                        ? 'bg-blue-600 text-white shadow-md' 
+                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                                    }`}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 mb-1">Utility Allocation %</label>
+                                        <div className="flex items-center gap-2">
+                                            <input 
+                                                type="range" min="1" max="50"
+                                                value={utilityAllocPct} 
+                                                onChange={(e) => setUtilityAllocPct(Number(e.target.value))}
+                                                className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-green-500"
+                                            />
+                                            <span className="text-sm font-bold text-green-500 dark:text-green-400 w-12">{utilityAllocPct}%</span>
+                                        </div>
+                                        <p className="text-xs text-slate-500 mt-1">Portion of grant spent on utils</p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-200 dark:border-slate-800">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 mb-1">Cost Inflation</label>
+                                            <input type="number" value={utilityInflation} onChange={(e) => setUtilityInflation(Number(e.target.value))} className="w-full p-1 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 rounded text-red-500 dark:text-red-400 font-bold text-sm text-center"/>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 mb-1">Grant Increase</label>
+                                            <input type="number" value={grantIncrease} onChange={(e) => setGrantIncrease(Number(e.target.value))} className="w-full p-1 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 rounded text-green-500 dark:text-green-400 font-bold text-sm text-center"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* SUNTRICITY INTERVENTION TOGGLE */}
+                            <div className={`p-5 rounded-xl border-2 transition-all cursor-pointer shadow-lg ${suntricityActive ? 'bg-gradient-to-br from-green-600 to-green-700 dark:from-green-900 dark:to-slate-900 border-green-500' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'}`} onClick={() => setSuntricityActive(!suntricityActive)}>
+                                <div className="flex justify-between items-center mb-4">
+                                    <div className={`flex items-center gap-3 font-bold ${suntricityActive ? 'text-white' : 'text-slate-800 dark:text-slate-100'}`}>
+                                        <div className={`p-2 rounded-lg ${suntricityActive ? 'bg-green-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}><Leaf size={20}/></div>
+                                        <div>
+                                            <div className="text-base">Suntricity Model</div>
+                                            <div className={`text-xs font-normal ${suntricityActive ? 'text-green-100' : 'text-slate-500 dark:text-slate-400'}`}>Combined Efficiency Intervention</div>
+                                        </div>
+                                    </div>
+                                    {suntricityActive && <span className="text-xs font-bold text-green-700 dark:text-green-400 bg-white dark:bg-green-900/40 px-3 py-1 rounded-full border border-green-200 dark:border-green-800">Active</span>}
+                                </div>
+                                
+                                <div className="space-y-3 mb-4">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className={`${suntricityActive ? 'text-green-50' : 'text-slate-500 dark:text-slate-400'} flex items-center gap-2`}><Zap size={14}/> Elec Savings (PV)</span>
+                                        <span className={`font-bold ${suntricityActive ? 'text-yellow-300' : 'text-yellow-600 dark:text-yellow-500'}`}>70%</span>
+                                    </div>
+                                    <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                        <div className="bg-yellow-500 h-full" style={{width: '70%'}}></div>
+                                    </div>
+                                    
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className={`${suntricityActive ? 'text-green-50' : 'text-slate-500 dark:text-slate-400'} flex items-center gap-2`}><Droplets size={14}/> Water Savings</span>
+                                        <span className={`font-bold ${suntricityActive ? 'text-sky-300' : 'text-sky-600 dark:text-sky-500'}`}>60%</span>
+                                    </div>
+                                    <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                        <div className="bg-sky-500 h-full" style={{width: '60%'}}></div>
+                                    </div>
+                                </div>
+
+                                <div className={`flex justify-between items-end border-t pt-3 mt-2 ${suntricityActive ? 'border-green-500/30' : 'border-slate-100 dark:border-slate-700/50'}`}>
+                                    <span className={`text-xs font-medium ${suntricityActive ? 'text-green-100' : 'text-slate-400'}`}>Total Projected Saving</span>
+                                    <span className={`text-lg font-bold ${suntricityActive ? 'text-white dark:text-green-400' : 'text-slate-600 dark:text-slate-600'}`}>
+                                        {formatCurrency(totalSavings)}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            {/* SMALL GAP ANALYSIS CHART (moved here to save space on right) */}
+                            <div className="bg-white dark:bg-slate-900 p-5 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+                                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-4 flex items-center gap-2"><Target size={16}/> Year 1 Snapshot</h3>
+                                <div className="h-[200px]">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={gapData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                            <XAxis dataKey="name" tick={{fill: theme.text, fontSize: 10}} tickLine={false} axisLine={false} />
+                                            <Tooltip formatter={(value) => formatCurrency(value)} contentStyle={{ backgroundColor: theme.tooltipBg, fontSize: '12px', border: `1px solid ${theme.tooltipBorder}`, color: theme.tooltipText }} />
+                                            <Bar dataKey="Grant" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                                            <Bar dataKey="TotalLiability" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                                <div className="mt-2 text-center text-xs text-slate-500">
+                                    Comparing Grant (Green) vs Total Liability (Red)
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 3. RIGHT COLUMN: MAIN PROJECTION CHART (LARGE) */}
+                        <div className="lg:col-span-8 space-y-6">
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 h-[600px] flex flex-col">
+                                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 mb-2">
+                                    <TrendingUp size={24} className="text-blue-500"/> 10-Year Liability Projection
+                                </h2>
+                                <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">
+                                    Projecting the long-term impact of the Suntricity intervention against the rising cost of municipal services.
+                                </p>
+                                
+                                <div className="flex-grow w-full min-h-0">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <ComposedChart data={projectionData} margin={{ top: 10, right: 30, left: 20, bottom: 20 }}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme.grid} />
+                                            <XAxis dataKey="year" tick={{fill: theme.text, fontSize: 12}} tickLine={false} axisLine={{stroke: theme.grid}} />
+                                            <YAxis tickFormatter={(value) => `R${(value/1000).toFixed(0)}k`} tick={{fill: theme.text, fontSize: 12}} tickLine={false} axisLine={false} />
+                                            <Tooltip 
+                                                formatter={(value) => formatCurrency(value)}
+                                                contentStyle={{ backgroundColor: theme.tooltipBg, borderRadius: '8px', border: `1px solid ${theme.tooltipBorder}`, color: theme.tooltipText }} 
+                                            />
+                                            <Legend wrapperStyle={{paddingTop: '20px'}}/>
+                                            <Area type="monotone" dataKey="grant" name="Available Grant" stroke="#22c55e" strokeWidth={2} fillOpacity={0.1} fill="#22c55e" />
+                                            <Line type="monotone" dataKey="cost" name="Projected Cost" stroke="#ef4444" strokeWidth={3} dot={false} />
+                                            <Line type="monotone" dataKey="accumulatedDeficit" name="Cumulative Debt" stroke="#f97316" strokeDasharray="5 5" strokeWidth={2} dot={false} />
+                                        </ComposedChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+
+                            {/* Data Table */}
+                            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm text-left">
+                                        <thead className="text-xs text-slate-500 uppercase bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
+                                            <tr>
+                                                <th className="px-6 py-4">Year</th>
+                                                <th className="px-6 py-4 text-right">Available Grant</th>
+                                                <th className="px-6 py-4 text-right text-red-500">Projected Cost</th>
+                                                <th className="px-6 py-4 text-right text-orange-500">Shortfall</th>
+                                                <th className="px-6 py-4 text-right font-bold text-slate-700 dark:text-slate-300">Accumulated Debt</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {projectionData.map((row, i) => (
+                                                <tr key={row.year} className="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                                                    <td className="px-6 py-3 font-medium text-slate-700 dark:text-slate-300">{row.year}</td>
+                                                    <td className="px-6 py-3 text-right text-green-600 dark:text-green-500 font-mono">{formatCompact(row.grant)}</td>
+                                                    <td className="px-6 py-3 text-right text-red-600 dark:text-red-500 font-mono">{formatCompact(row.cost)}</td>
+                                                    <td className="px-6 py-3 text-right text-orange-600 dark:text-orange-500 font-bold font-mono">
+                                                        {row.shortfall > 0 ? `(${formatCompact(row.shortfall)})` : '-'}
+                                                    </td>
+                                                    <td className="px-6 py-3 text-right font-bold text-slate-800 dark:text-slate-200 bg-orange-50 dark:bg-orange-950/10 font-mono border-l border-slate-200 dark:border-slate-800">
+                                                        {row.accumulatedDeficit > 0 ? formatCompact(row.accumulatedDeficit) : 'R 0'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- 5. MAIN APP LAYOUT ---
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('deficit');
+            const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+            const [isDark, setIsDark] = useState(true); // Default to Dark Mode
+
+            // Theme Toggle Logic
+            const toggleTheme = () => {
+                const newTheme = !isDark;
+                setIsDark(newTheme);
+                if (newTheme) {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            };
+
+            // Initialize Theme
+            useEffect(() => {
+                if (isDark) {
+                    document.documentElement.classList.add('dark');
+                }
+            }, []);
+
+
+            // --- LIFTED STATE ---
+            const [learners, setLearners] = useState(712); // From PDF
+            const [perCapita, setPerCapita] = useState(1835); // 2026 Norm Default (Quintile 1-3)
+            const sasaTotal = learners * perCapita;
+            const sasaMunicipal = (sasaTotal * 0.38) * 0.60; 
+
+            // 2. Elec State
+            const [elecData, setElecData] = useState([
+                { month: 'Jan', cost: 46265.29 }, { month: 'Feb', cost: 45466.80 }, { month: 'Mar', cost: 88310.19 },
+                { month: 'Apr', cost: 74251.44 }, { month: 'May', cost: 84405.62 }, { month: 'Jun', cost: 84965.58 },
+                { month: 'Jul', cost: 127995.20 }, { month: 'Aug', cost: 118642.34 }, { month: 'Sep', cost: 146900.01 },
+                { month: 'Oct', cost: 112937.28 }, { month: 'Nov', cost: 111451.02 }, { month: 'Dec', cost: 101860.55 }
+            ]);
+
+            // 3. Water State
+            const [waterData, setWaterData] = useState([
+                { month: 'Jan', cost: 45892.91 }, { month: 'Feb', cost: 20156.02 }, { month: 'Mar', cost: 39160.05 },
+                { month: 'Apr', cost: 29820.92 }, { month: 'May', cost: 39268.65 }, { month: 'Jun', cost: 32318.60 },
+                { month: 'Jul', cost: 70595.48 }, { month: 'Aug', cost: 71291.92 }, { month: 'Sep', cost: 80105.07 },
+                { month: 'Oct', cost: 153574.86 }, { month: 'Nov', cost: 81218.31 }, { month: 'Dec', cost: 80847.23 }
+            ]);
+
+            // 4. Consumption State
+            const [elecConsumption, setElecConsumption] = useState(elecData.map(d => ({ month: d.month, value: Math.round(d.cost / 3.5) })));
+            
+            const [waterDailyData, setWaterDailyData] = useState(
+                Array.from({ length: 31 }, (_, i) => ({
+                    day: i + 1,
+                    school: Math.floor(Math.random() * (30 - 10 + 1) + 10), 
+                    outside: Math.floor(Math.random() * (45 - 5 + 1) + 5), 
+                }))
+            );
+
+            const totalElecCost = elecData.reduce((acc, curr) => acc + curr.cost, 0);
+            const totalWaterCost = waterData.reduce((acc, curr) => acc + curr.cost, 0);
+            const totalCurrentCost = totalElecCost + totalWaterCost;
+
+            return (
+                <div className="flex min-h-screen font-sans">
+                    {/* Desktop Sidebar */}
+                    <aside className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 hidden md:flex flex-col fixed h-full z-10 transition-colors duration-300">
+                        <div className="p-6 border-b border-slate-200 dark:border-slate-800">
+                            <div className="flex items-center gap-2 font-bold text-xl text-slate-800 dark:text-slate-100">
+                                <div className="w-8 h-8 bg-yellow-500 rounded-lg flex items-center justify-center shadow-sm text-white">
+                                    <Zap size={20} fill="currentColor"/>
+                                </div>
+                                Budget2026
+                            </div>
+                        </div>
+                        
+                        <nav className="flex-1 p-4 overflow-y-auto">
+                            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 px-2">Strategic</div>
+                            <SidebarItem icon={AlertTriangle} label="Funding Deficit" active={activeTab === 'deficit'} onClick={() => setActiveTab('deficit')} />
+
+                            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-8 mb-4 px-2">Analysis Tools</div>
+                            <SidebarItem icon={Calculator} label="Cost Projection" active={activeTab === 'projection'} onClick={() => setActiveTab('projection')} />
+                            <SidebarItem icon={School} label="SASA Allocation" active={activeTab === 'sasa'} onClick={() => setActiveTab('sasa')} />
+                            <SidebarItem icon={Activity} label="Consumption Analysis" active={activeTab === 'consumption'} onClick={() => setActiveTab('consumption')} />
+                            
+                            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-8 mb-4 px-2">Detailed Services</div>
+                            <SidebarItem icon={Zap} label="Electricity Cost 2025" active={activeTab === 'elec2025'} onClick={() => setActiveTab('elec2025')} />
+                            <SidebarItem icon={Droplets} label="Water Cost 2025" active={activeTab === 'water2025'} onClick={() => setActiveTab('water2025')} />
+
+                            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-8 mb-4 px-2">System</div>
+                            <SidebarItem icon={LayoutDashboard} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
+                        </nav>
+
+                        <div className="p-4 border-t border-slate-200 dark:border-slate-800">
+                            {/* Theme Toggle Button */}
+                            <button 
+                                onClick={toggleTheme}
+                                className="w-full mb-4 flex items-center gap-3 px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            >
+                                {isDark ? <Sun size={18} /> : <Moon size={18} />}
+                                <span className="text-sm font-medium">{isDark ? 'Light Mode' : 'Dark Mode'}</span>
+                            </button>
+
+                            <div className="flex items-center gap-3 pt-2">
+                                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 border border-blue-200 dark:border-blue-700 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-xs">SH</div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">Steve Harris</p>
+                                    <p className="text-xs text-slate-500 truncate">Bursar</p>
+                                </div>
+                            </div>
+                        </div>
+                    </aside>
+
+                    {/* Mobile Header */}
+                    <div className="md:hidden fixed top-0 left-0 right-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 z-20 flex justify-between items-center shadow-sm">
+                        <div className="flex items-center gap-2 font-bold text-lg text-slate-800 dark:text-slate-100">
+                            <div className="w-7 h-7 bg-yellow-500 rounded flex items-center justify-center text-white">
+                                <Zap size={16} fill="currentColor"/>
+                            </div>
+                            Budget2026
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button onClick={toggleTheme} className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                                {isDark ? <Sun size={20} /> : <Moon size={20} />}
+                            </button>
+                            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                                {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Mobile Menu Overlay */}
+                    {isMobileMenuOpen && (
+                        <div className="fixed inset-0 bg-white dark:bg-slate-900 z-10 pt-20 px-4 md:hidden animate-in slide-in-from-top-10 duration-200">
+                            <SidebarItem icon={AlertTriangle} label="Funding Deficit" active={activeTab === 'deficit'} onClick={() => {setActiveTab('deficit'); setIsMobileMenuOpen(false)}} />
+                            <SidebarItem icon={Calculator} label="Cost Projection" active={activeTab === 'projection'} onClick={() => {setActiveTab('projection'); setIsMobileMenuOpen(false)}} />
+                            <SidebarItem icon={School} label="SASA Allocation" active={activeTab === 'sasa'} onClick={() => {setActiveTab('sasa'); setIsMobileMenuOpen(false)}} />
+                            <SidebarItem icon={Activity} label="Consumption Analysis" active={activeTab === 'consumption'} onClick={() => {setActiveTab('consumption'); setIsMobileMenuOpen(false)}} />
+                            <SidebarItem icon={Zap} label="Electricity Cost 2025" active={activeTab === 'elec2025'} onClick={() => {setActiveTab('elec2025'); setIsMobileMenuOpen(false)}} />
+                            <SidebarItem icon={Droplets} label="Water Cost 2025" active={activeTab === 'water2025'} onClick={() => {setActiveTab('water2025'); setIsMobileMenuOpen(false)}} />
+                            <SidebarItem icon={LayoutDashboard} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => {setActiveTab('dashboard'); setIsMobileMenuOpen(false)}} />
+                        </div>
+                    )}
+
+                    {/* Main Content Area */}
+                    <main className="flex-1 md:ml-64 p-4 md:p-8 pt-20 md:pt-8 bg-slate-50 dark:bg-slate-950 min-h-screen transition-colors duration-300">
+                        {activeTab === 'projection' && <CalculatorView totalCurrentCost={totalCurrentCost} isDark={isDark} />}
+                        {activeTab === 'sasa' && <SasaAllocationView learners={learners} setLearners={setLearners} perCapita={perCapita} setPerCapita={setPerCapita} isDark={isDark} />}
+                        {activeTab === 'consumption' && (
+                            <ConsumptionView 
+                                elecCons={elecConsumption} 
+                                setElecCons={setElecConsumption} 
+                                waterDailyData={waterDailyData}
+                                isDark={isDark}
+                            />
+                        )}
+                        {activeTab === 'elec2025' && <MonthlyCostView type="electricity" data={elecData} setData={setElecData} isDark={isDark} />}
+                        {activeTab === 'water2025' && <MonthlyCostView type="water" data={waterData} setData={setWaterData} isDark={isDark} />}
+                        {activeTab === 'deficit' && 
+                            <FundingDeficitView 
+                                elecData={elecData} 
+                                waterData={waterData} 
+                                sasaAllocation={sasaMunicipal}
+                                perCapita={perCapita}
+                                setPerCapita={setPerCapita}
+                                isDark={isDark}
+                            />
+                        }
+                        {activeTab === 'dashboard' && <PlaceholderView title="Dashboard Overview" icon={LayoutDashboard} isDark={isDark} />}
+                        {activeTab === 'settings' && <PlaceholderView title="System Settings" icon={Settings} isDark={isDark} />}
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
