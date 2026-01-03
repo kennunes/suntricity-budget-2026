@@ -93,6 +93,7 @@
         const Users = (props) => <IconBase {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></IconBase>;
         const Headphones = (props) => <IconBase {...props}><path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2z"/><path d="M18 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2z"/><path d="M21 14v-3a9 9 0 0 0-9-9 9 9 0 0 0-9 9v3"/></IconBase>;
         const Square = (props) => <IconBase {...props}><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /></IconBase>;
+        const Key = (props) => <IconBase {...props}><path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/></IconBase>;
 
         // --- 3. UI COMPONENTS (Dark Mode Styled) ---
 
@@ -973,23 +974,83 @@
             );
         };
 
+        const SettingsView = ({ apiKey, setApiKey }) => {
+            const handleSave = (e) => {
+                e.preventDefault();
+                const val = e.target.key.value.trim();
+                setApiKey(val);
+                localStorage.setItem('suntricity_api_key', val);
+            };
+
+            return (
+                <div className="max-w-3xl mx-auto space-y-6 fade-in pt-10">
+                    <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-xl">
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="p-3 bg-blue-500/10 rounded-xl text-blue-500">
+                                <Key size={32} />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-bold text-white">API Configuration</h2>
+                                <p className="text-slate-400 text-sm">Enable neural audio explanations across the dashboard.</p>
+                            </div>
+                        </div>
+
+                        <form onSubmit={handleSave} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-400 mb-2">Gemini API Key</label>
+                                <input 
+                                    name="key"
+                                    type="password" 
+                                    defaultValue={apiKey}
+                                    placeholder="Paste your key here..."
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-blue-900/20">
+                                Save Configuration
+                            </button>
+                        </form>
+                        
+                        <div className="mt-8 p-4 bg-blue-950/20 border border-blue-900/50 rounded-xl">
+                            <h3 className="text-xs font-bold text-blue-400 uppercase mb-2">How to get a key?</h3>
+                            <p className="text-sm text-slate-300 leading-relaxed">
+                                1. Visit <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-blue-400 underline">Google AI Studio</a>.<br/>
+                                2. Create a free API Key.<br/>
+                                3. Paste it above to activate the "Fenrir" neural guide.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         // --- 5. MAIN APP LAYOUT ---
         const App = () => {
             const [activeTab, setActiveTab] = useState('deficit');
             const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
             
-            // --- AUDIO STATE ---
+            // --- API & AUDIO STATE ---
+            const [apiKey, setApiKey] = useState(localStorage.getItem('suntricity_api_key') || "");
             const [isAudioLoading, setIsAudioLoading] = useState(false);
             const [isAudioPlaying, setIsAudioPlaying] = useState(false);
             const audioRef = useRef(null);
 
-            // --- LIFTED STATE ---
-            const [learners, setLearners] = useState(712); // From PDF
-            const [perCapita, setPerCapita] = useState(1835); // 2026 Norm Default (Quintile 1-3)
+            // --- EXPLAINER SCRIPTS ---
+            const explainerScripts = {
+                deficit: "This dashboard displays your school's Funding Deficit. We analyze your Section 21 municipal grant against the reality of your current electricity and water invoices. This gap represents a direct threat to the school's financial stability.",
+                projection: "This 10-year projection reveals the long-term impact of utility inflation. With tariffs currently rising at twice the rate of your grant increase, the school faces an unsustainable debt burden without immediate technical intervention.",
+                sasa: "Here we calculate your official Section 21 allocation. It is critical to note that only thirty-eight percent of this grant is intended for services and maintenance, and only a fraction of that is ringfenced for municipal bills.",
+                consumption: "Our consumption analysis identifies physical waste. By comparing day usage with night usage, we typically find that sixty percent of water cost is actually lost after hours due to undetected leaks or inefficient irrigation.",
+                elec2025: "This is your historical electricity billing record for the current financial year. We use these actual invoice amounts to build your strategic baseline.",
+                water2025: "This is your historical water billing record for the current financial year. Notice the seasonal trends that often hide significant underground leaks."
+            };
+
+            // --- LIFTED CALCULATOR STATE ---
+            const [learners, setLearners] = useState(712); 
+            const [perCapita, setPerCapita] = useState(1835); 
             const sasaTotal = learners * perCapita;
             const sasaMunicipal = (sasaTotal * 0.38) * 0.60; 
 
-            // 2. Elec State
             const [elecData, setElecData] = useState([
                 { month: 'Jan', cost: 46265.29 }, { month: 'Feb', cost: 45466.80 }, { month: 'Mar', cost: 88310.19 },
                 { month: 'Apr', cost: 74251.44 }, { month: 'May', cost: 84405.62 }, { month: 'Jun', cost: 84965.58 },
@@ -997,7 +1058,6 @@
                 { month: 'Oct', cost: 112937.28 }, { month: 'Nov', cost: 111451.02 }, { month: 'Dec', cost: 101860.55 }
             ]);
 
-            // 3. Water State
             const [waterData, setWaterData] = useState([
                 { month: 'Jan', cost: 45892.91 }, { month: 'Feb', cost: 20156.02 }, { month: 'Mar', cost: 39160.05 },
                 { month: 'Apr', cost: 29820.92 }, { month: 'May', cost: 39268.65 }, { month: 'Jun', cost: 32318.60 },
@@ -1005,9 +1065,7 @@
                 { month: 'Oct', cost: 153574.86 }, { month: 'Nov', cost: 81218.31 }, { month: 'Dec', cost: 80847.23 }
             ]);
 
-            // 4. Consumption State
             const [elecConsumption, setElecConsumption] = useState(elecData.map(d => ({ month: d.month, value: Math.round(d.cost / 3.5) })));
-            
             const [waterDailyData, setWaterDailyData] = useState(
                 Array.from({ length: 31 }, (_, i) => ({
                     day: i + 1,
@@ -1020,7 +1078,7 @@
             const totalWaterCost = waterData.reduce((acc, curr) => acc + curr.cost, 0);
             const totalCurrentCost = totalElecCost + totalWaterCost;
 
-            // --- AUDIO LOGIC ---
+            // --- AUDIO ENGINE ---
             const pcmToWav = (pcmData, sampleRate) => {
                 const header = new ArrayBuffer(44);
                 const view = new DataView(header);
@@ -1049,23 +1107,20 @@
                     return;
                 }
 
+                if (!apiKey) {
+                    setActiveTab('settings');
+                    return;
+                }
+
                 setIsAudioLoading(true);
-                const prompts = {
-                    deficit: "Explain briefly: This tab shows the Funding Deficit. We compare your municipal grant allocation against actual electricity and water costs. Without intervention, rising tariffs create a growing debt spiral for the school.",
-                    projection: "Explain briefly: This projection calculates your cumulative utility liability over the next ten years. At an average inflation rate of seven point five percent, your current annual costs will double in less than a decade.",
-                    sasa: "Explain briefly: This view breaks down your official S-A-S-A Section 21 allocation. Notice that only a small portion is ringfenced for municipal services, leaving the school to find the balance from school fees.",
-                    consumption: "Explain briefly: This analysis focuses on physical usage. By tracking day versus night consumption, we can pinpoint major leaks and wasted energy outside of school hours.",
-                    elec2025: "This is your historical electricity billing record for the current financial year.",
-                    water2025: "This is your historical water billing record for the current financial year."
-                };
+                const prompt = explainerScripts[activeTab] || "Welcome to the Budget 2026 Strategy Dashboard.";
 
                 try {
-                    const apiKey = ""; // Injected
                     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            contents: [{ parts: [{ text: prompts[activeTab] || "Welcome to the Budget 2026 Strategy Dashboard." }] }],
+                            contents: [{ parts: [{ text: "Explain professionally: " + prompt }] }],
                             generationConfig: {
                                 responseModalities: ["AUDIO"],
                                 speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Fenrir" } } }
@@ -1104,7 +1159,6 @@
                                     Budget2026
                                 </div>
                                 
-                                {/* DISCRETE AUDIO BUTTON */}
                                 <div className="relative group">
                                     <button 
                                         onClick={toggleAudioExplanation}
@@ -1120,9 +1174,8 @@
                                         )}
                                         {isAudioPlaying && <div className="absolute inset-0 rounded-full border border-red-500 audio-pulse"></div>}
                                     </button>
-                                    {/* TOOLTIP */}
                                     <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-slate-800 text-[10px] font-bold text-white rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap border border-slate-700 transition-opacity z-50">
-                                        Explanation Audio
+                                        {apiKey ? "Explanation Audio" : "Configure API Key First"}
                                     </div>
                                 </div>
                             </div>
@@ -1173,43 +1226,16 @@
                         </button>
                     </div>
 
-                    {/* Mobile Menu Overlay */}
-                    {isMobileMenuOpen && (
-                        <div className="fixed inset-0 bg-slate-900 z-10 pt-20 px-4 md:hidden animate-in slide-in-from-top-10 duration-200 text-slate-200 text-slate-200">
-                            <SidebarItem icon={AlertTriangle} label="Funding Deficit" active={activeTab === 'deficit'} onClick={() => {setActiveTab('deficit'); setIsMobileMenuOpen(false)}} />
-                            <SidebarItem icon={Calculator} label="Cost Projection" active={activeTab === 'projection'} onClick={() => {setActiveTab('projection'); setIsMobileMenuOpen(false)}} />
-                            <SidebarItem icon={School} label="SASA Allocation" active={activeTab === 'sasa'} onClick={() => {setActiveTab('sasa'); setIsMobileMenuOpen(false)}} />
-                            <SidebarItem icon={Activity} label="Consumption Analysis" active={activeTab === 'consumption'} onClick={() => {setActiveTab('consumption'); setIsMobileMenuOpen(false)}} />
-                            <SidebarItem icon={Zap} label="Electricity Cost 2025" active={activeTab === 'elec2025'} onClick={() => {setActiveTab('elec2025'); setIsMobileMenuOpen(false)}} />
-                            <SidebarItem icon={Droplets} label="Water Cost 2025" active={activeTab === 'water2025'} onClick={() => {setActiveTab('water2025'); setIsMobileMenuOpen(false)}} />
-                            <SidebarItem icon={LayoutDashboard} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => {setActiveTab('dashboard'); setIsMobileMenuOpen(false)}} />
-                        </div>
-                    )}
-
                     {/* Main Content Area */}
                     <main className="flex-1 md:ml-64 p-4 md:p-8 pt-20 md:pt-8 bg-slate-950 min-h-screen">
                         {activeTab === 'projection' && <CalculatorView totalCurrentCost={totalCurrentCost} />}
                         {activeTab === 'sasa' && <SasaAllocationView learners={learners} setLearners={setLearners} perCapita={perCapita} setPerCapita={setPerCapita} />}
-                        {activeTab === 'consumption' && (
-                            <ConsumptionView 
-                                elecCons={elecConsumption} 
-                                setElecCons={setElecConsumption} 
-                                waterDailyData={waterDailyData}
-                            />
-                        )}
+                        {activeTab === 'consumption' && <ConsumptionView elecCons={elecConsumption} setElecCons={setElecConsumption} waterDailyData={waterDailyData} />}
                         {activeTab === 'elec2025' && <MonthlyCostView type="electricity" data={elecData} setData={setElecData} />}
                         {activeTab === 'water2025' && <MonthlyCostView type="water" data={waterData} setData={setWaterData} />}
-                        {activeTab === 'deficit' && 
-                            <FundingDeficitView 
-                                elecData={elecData} 
-                                waterData={waterData} 
-                                sasaAllocation={sasaMunicipal}
-                                perCapita={perCapita}
-                                setPerCapita={setPerCapita}
-                            />
-                        }
+                        {activeTab === 'deficit' && <FundingDeficitView elecData={elecData} waterData={waterData} sasaAllocation={sasaMunicipal} perCapita={perCapita} setPerCapita={setPerCapita} />}
+                        {activeTab === 'settings' && <SettingsView apiKey={apiKey} setApiKey={setApiKey} />}
                         {activeTab === 'dashboard' && <PlaceholderView title="Dashboard Overview" icon={LayoutDashboard} />}
-                        {activeTab === 'settings' && <PlaceholderView title="System Settings" icon={Settings} />}
                     </main>
                 </div>
             );
